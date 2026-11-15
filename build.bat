@@ -17,3 +17,5 @@ if not exist dist\KEYWAVE\KEYWAVE.exe exit /b 1
 powershell -NoProfile -Command "$p = Start-Process -FilePath 'dist\KEYWAVE\KEYWAVE.exe' -ArgumentList '--smoke-test' -WindowStyle Hidden -Wait -PassThru; exit $p.ExitCode"
 if errorlevel 1 exit /b 1
 echo Build ready: dist\KEYWAVE\KEYWAVE.exe
+.venv\Scripts\python.exe scripts\package.py
+if errorlevel 1 exit /b 1

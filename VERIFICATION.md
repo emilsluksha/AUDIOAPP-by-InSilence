@@ -2,9 +2,9 @@
 
 Development platform: Windows 11 x64, Python 3.12.14.
 
-- 52 pytest cases pass, including real WAV/MP3 decoding and export, damaged input,
+- 53 pytest cases pass, including real WAV/MP3 decoding and export, damaged input,
   440 Hz pitch, all 24 tonal profiles, synthesized C-major audio, a 120 BPM rhythm,
-  silence, anti-phase stereo, fragment analysis, all mastering presets, finite
+  silence, white-noise rejection, anti-phase stereo, fragment analysis, all mastering presets, finite
   output, peak ceiling, zero-intensity bypass, cancellation, history persistence,
   language switching, settings persistence and drag/drop signal handling.
 - librosa emits expected tuning/FFT warnings for percussion-only and short synthetic

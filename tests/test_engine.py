@@ -184,3 +184,11 @@ def test_cancellation_mid_analysis():
     progress.callback = lambda value, stage: progress.event.set() if value >= 8 else None
     with pytest.raises(Cancelled):
         analyze(tone(), progress=progress)
+
+
+def test_noise_does_not_invent_a_key():
+    samples = np.random.default_rng(11).normal(0, .05, (22050*5, 1)).astype(np.float32)
+    result = analyze(Audio(samples, 22050, 'noise.wav'))
+    assert result['key'] is None
+    assert result['candidates'] == []
+    assert 'no_key' in result['warnings']

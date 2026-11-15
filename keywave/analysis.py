@@ -86,7 +86,9 @@ def analyze(audio: Audio, start: float = 0, end: float | None = None,
     margin = best['score'] - candidates[1]['score']
     confidence = float(np.clip(max(0., best['score']) * .65 + margin * 1.8, 0, 1))
     concentration = float(np.max(distribution) / max(np.sum(distribution), 1e-9))
-    tonal = harmonic_energy / max(total_energy, 1e-9) > .12 and best['score'] > .45 and concentration < .65
+    chroma_contrast = float(np.std(distribution) / max(np.mean(distribution), 1e-9))
+    tonal = (harmonic_energy / max(total_energy, 1e-9) > .12 and best['score'] > .45
+             and concentration < .65 and chroma_contrast > .12)
     key = best if tonal else None
     if not tonal:
         warnings.append('no_key')
