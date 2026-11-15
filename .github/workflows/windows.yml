@@ -1,0 +1,47 @@
+name: Windows application
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements-lock.txt
+      - name: Generate branding and collect notices
+        run: python scripts/make_assets.py
+      - name: Test
+        run: python -m pytest -q
+      - name: Build Windows distribution
+        run: python -m PyInstaller --noconfirm KEYWAVE.spec
+      - name: Exercise packaged application
+        shell: pwsh
+        run: |
+          if (!(Test-Path dist/KEYWAVE/KEYWAVE.exe)) { throw 'Missing executable' }
+          $env:QT_QPA_PLATFORM = 'offscreen'
+          $p = Start-Process dist/KEYWAVE/KEYWAVE.exe -ArgumentList '--smoke-test' -WindowStyle Hidden -PassThru
+          if (!$p.WaitForExit(300000)) { $p.Kill(); throw 'Packaged smoke test timed out' }
+          if ($p.ExitCode -ne 0) { throw 'Packaged smoke test failed' }
+          $report = Get-Content artifacts/smoke-result.json | ConvertFrom-Json
+          if (!$report.ok) { throw 'Packaged report failed' }
+      - name: Upload portable application
+        uses: actions/upload-artifact@v4
+        with:
+          name: KEYWAVE-Windows-x64
+          path: dist/KEYWAVE/
+          if-no-files-found: error
+      - name: Upload verification results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification
+          path: artifacts/
