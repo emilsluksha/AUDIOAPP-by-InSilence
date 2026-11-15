@@ -42,6 +42,8 @@ class MainWindow(QMainWindow):
         self.master_ceiling = -1.
         self.worker = None
         self.busy = False
+        self.current_stage = 'ready'
+        self.current_notice = None
         self.bindings = []
         self.buttons = []
         self.temp = tempfile.TemporaryDirectory(prefix='keywave-player-')
@@ -454,6 +456,11 @@ class MainWindow(QMainWindow):
         self.compare_plot.setLabel('bottom', self.tr('time'), units='s')
         self.volume.setToolTip(self.tr('volume'))
         self.seek.setToolTip(self.tr('seek'))
+        self.status.setText(self.tr(self.current_stage))
+        if self.current_notice:
+            self.notice.setText(self.tr(self.current_notice))
+        if self.audio:
+            self.player_name.setText(f'{Path(self.audio.path).name}  ·  {self.tr(self.media_kind)}')
         if self.result:
             self.display_result(self.result, animate=False)
         self.update_file_info()
@@ -461,6 +468,7 @@ class MainWindow(QMainWindow):
         self.refresh_history()
 
     def notify(self, key):
+        self.current_notice = key
         self.notice.setText(self.tr(key))
         self.notice.show()
         self.notice_animation.stop()
@@ -493,6 +501,7 @@ class MainWindow(QMainWindow):
         self.worker.start()
 
     def set_progress(self, value, stage):
+        self.current_stage = stage
         self.status.setText(self.tr(stage))
         self.progress_anim.stop()
         self.progress_anim.setDuration(0 if self.reduced_motion() else 150)
@@ -502,6 +511,7 @@ class MainWindow(QMainWindow):
 
     def job_finished(self):
         self.busy = False
+        self.current_stage = 'ready'
         self.pulse.stop()
         self.cancel_button.hide()
         self.status.setText(self.tr('ready'))
