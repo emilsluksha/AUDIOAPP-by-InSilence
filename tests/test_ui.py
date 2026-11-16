@@ -12,11 +12,24 @@ def test_navigation_translation_preferences(tmp_path):
     settings = QSettings(str(tmp_path/'settings.ini'), QSettings.IniFormat)
     window = MainWindow(settings, History(tmp_path/'history.json'))
     window.show()
-    for i in range(5):
+    for i in range(7):
         window.nav[i].click()
         assert window.stack.currentIndex() == i
     window.language.setCurrentIndex(1)
+    window.navigate(4)
     assert window.heading.text() == 'Настройки'
+    vocal = window.vocal_page
+    vocal.key.setCurrentIndex(8)
+    assert vocal.key.currentText() == 'G#'
+    vocal.scale.setCurrentIndex(1)
+    assert vocal.scale.currentData() == 'major'
+    vocal.bpm.setValue(175)
+    assert vocal.bpm.value() == 175
+    vocal.strength.setValue(83)
+    assert vocal.strength_value.text() == '83%'
+    window.youtube_mode.setCurrentText('MP4')
+    assert window.youtube_quality.count() == 5
+    assert window.youtube_quality.itemData(4) == 2160
     window.reduced.setChecked(True)
     settings.sync()
     restored = QSettings(str(tmp_path/'settings.ini'), QSettings.IniFormat)

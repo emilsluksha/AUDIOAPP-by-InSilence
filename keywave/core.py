@@ -25,6 +25,7 @@ class Progress:
     def __init__(self, callback: Callable[[int, str], None] | None = None):
         self.event = Event()
         self.callback = callback or (lambda value, stage: None)
+        self.details = lambda payload: None
 
     def check(self):
         if self.event.is_set():

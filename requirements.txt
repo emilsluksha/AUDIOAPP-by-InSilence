@@ -10,3 +10,4 @@ numba==0.61.2
 pyinstaller==6.14.2
 pytest==8.4.1
 pillow==11.2.1
+yt-dlp[default]==2026.10.26

@@ -70,9 +70,45 @@ def run_smoke(app, window):
                 window.navigate(0)
             elif stage == 5:
                 window.grab().save(str(directory/'dashboard-ru.png'))
+                t = np.arange(rate*2)/rate
+                vocal = directory/'smoke-vocal.wav'
+                sf.write(vocal,.2*np.sin(2*np.pi*280*t),rate)
+                window.navigate(6)
+                window.vocal_page.load(str(vocal))
+            elif stage == 6:
+                vocal = window.vocal_page
+                assert vocal.audio is not None,window.notice.text()
+                vocal.key.setCurrentIndex(0)
+                vocal.scale.setCurrentIndex(1)
+                vocal.strength.setValue(100)
+                vocal.speed.setCurrentIndex(2)
+                vocal.humanize.setValue(0)
+                vocal.process()
+            elif stage == 7:
+                from scipy.signal import welch
+                from .core import resource
+                import subprocess
+                import yt_dlp
+                import yt_dlp_ejs
+                vocal = window.vocal_page
+                assert vocal.tuned is not None,window.notice.text()
+                frequency,power = welch(vocal.tuned.samples[rate//2:rate*3//2,0],rate,nperseg=16384)
+                state['vocal_hz'] = float(frequency[np.argmax(power)])
+                assert abs(state['vocal_hz']-293.6648) < 3
+                export_audio(vocal.tuned,str(directory/'smoke-tuned.wav'),rate,'PCM_24')
+                export_audio(vocal.tuned,str(directory/'smoke-tuned.mp3'),rate,'PCM_24',192)
+                assert decode(str(directory/'smoke-tuned.mp3')).duration > 1.9
+                node = subprocess.run([str(resource('runtime/node.exe')),'--version'],capture_output=True,check=True,
+                    creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+                state['node_version'] = node.stdout.decode().strip()
+                window.grab().save(str(directory/'vocal-studio.png'))
+                window.navigate(5)
+            elif stage == 8:
+                window.grab().save(str(directory/'youtube-downloader.png'))
                 (directory/'smoke-result.json').write_text(json.dumps({'ok':True,
                     'key':window.result['key'], 'bpm':window.result['bpm'],
-                    'master':window.master_metrics, 'playback_position_ms':state['playback_position']},indent=2), encoding='utf-8')
+                    'master':window.master_metrics, 'playback_position_ms':state['playback_position'],
+                    'vocal_hz':state['vocal_hz'],'node_version':state['node_version']},indent=2), encoding='utf-8')
                 timer.stop()
                 window.close()
                 app.quit()

@@ -1,11 +1,11 @@
-# PyInstaller onedir build: Qt DLLs remain replaceable for LGPL compliance.
+# Standalone onefile build. Resources resolve through sys._MEIPASS.
 from PyInstaller.utils.hooks import collect_all, collect_data_files, copy_metadata
 
 datas = [('localization', 'localization'), ('assets', 'assets'),
-         ('licenses', 'licenses'), ('THIRD_PARTY_NOTICES.md', '.'), ('LICENSE', '.')]
+         ('licenses', 'licenses'), ('runtime', 'runtime'), ('THIRD_PARTY_NOTICES.md', '.'), ('LICENSE', '.')]
 binaries = []
 hiddenimports = ['scipy.special._ufuncs', 'scipy.signal', 'scipy.ndimage', 'sklearn.utils._cython_blas']
-for package in ('librosa', 'lazy_loader', 'imageio_ffmpeg', 'pyloudnorm'):
+for package in ('librosa', 'lazy_loader', 'imageio_ffmpeg', 'pyloudnorm', 'yt_dlp', 'yt_dlp_ejs'):
     d, b, h = collect_all(package)
     datas += d
     binaries += b
@@ -18,7 +18,6 @@ a = Analysis(['main.py'], pathex=[], binaries=binaries, datas=datas,
              excludes=['tkinter', 'matplotlib', 'PyQt5', 'PyQt6', 'PySide2', 'IPython', 'pytest'],
              noarchive=False)
 pyz = PYZ(a.pure)
-exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='KEYWAVE', debug=False,
+exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name='KEYWAVE', debug=False,
           bootloader_ignore_signals=False, strip=False, upx=False, console=False,
           icon='assets/keywave.ico')
-coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='KEYWAVE')

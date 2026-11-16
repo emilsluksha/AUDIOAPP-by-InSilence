@@ -4,6 +4,10 @@ KEYWAVE's original source and generated geometric icon are provided under MIT.
 Dependencies retain their own licenses. License texts collected from the exact
 installed wheels are in `licenses/` and are included in the portable build.
 
+YouTube downloads use yt-dlp (Unlicense), yt-dlp-ejs (Unlicense), and a bundled
+official Node.js runtime (MIT and included third-party notices in Node-LICENSE.txt).
+Optional yt-dlp dependencies retain the licenses collected in `licenses/`.
+
 - Python: PSF license — https://www.python.org/downloads/source/
 - PySide6 / Qt 6.8.3 / Shiboken: LGPL v3 / GPL options, dynamically linked.
   https://download.qt.io/official_releases/QtForPython/pyside6/
@@ -23,7 +27,9 @@ installed wheels are in `licenses/` and are included in the portable build.
 - PyInstaller: GPL with bootloader distribution exception.
   https://pyinstaller.org/en/stable/license.html
 
-The onedir package deliberately keeps Qt and other dynamic libraries separate.
+The onefile package extracts dynamically linked Qt and other libraries at runtime.
+The application source, dependency manifests, KEYWAVE.spec and build.bat are
+provided to rebuild the executable with compatible modified libraries.
 Users may replace or relink LGPL libraries with compatible modified versions,
 and may reverse engineer the application to debug those modifications.
 No KEYWAVE term restricts those rights. A compatible replacement FFmpeg binary

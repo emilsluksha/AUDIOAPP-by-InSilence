@@ -27,6 +27,7 @@ from .widgets import Button, DropZone, Card, Worker
 from .style import STYLE
 
 pg.setConfigOptions(antialias=True, background='#171120', foreground='#A9A0BB')
+PAGE_KEYS = ('dashboard', 'analyzer', 'mastering', 'history', 'settings', 'youtube', 'vocal_studio')
 
 
 class MainWindow(QMainWindow):
@@ -93,7 +94,8 @@ class MainWindow(QMainWindow):
         sidebar.setObjectName('sidebar')
         sidebar.setFixedWidth(202)
         nav = QVBoxLayout(sidebar)
-        nav.setContentsMargins(16, 28, 16, 20)
+        nav.setContentsMargins(16, 20, 16, 16)
+        nav.setSpacing(6)
         logo = QLabel()
         logo.setPixmap(QPixmap(str(resource('assets/keywave.png'))).scaled(52, 52, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         nav.addWidget(logo)
@@ -101,12 +103,12 @@ class MainWindow(QMainWindow):
         brand.setObjectName('brand')
         nav.addWidget(brand)
         nav.addWidget(self.label('tagline', 'muted'))
-        nav.addSpacing(30)
+        nav.addSpacing(16)
         self.nav = []
-        for index, key in enumerate(('dashboard', 'analyzer', 'mastering', 'history', 'settings')):
+        for index, key in enumerate(PAGE_KEYS):
             button = self.button(key, lambda checked=False, i=index: self.navigate(i))
             button.setCheckable(True)
-            button.setMinimumHeight(46)
+            button.setMinimumHeight(38)
             nav.addWidget(button)
             self.nav.append(button)
         nav.addStretch()
@@ -133,7 +135,7 @@ class MainWindow(QMainWindow):
         body.addLayout(header)
         self.stack = QStackedWidget()
         self.pages = []
-        for _ in range(5):
+        for _ in PAGE_KEYS:
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
             page = QWidget()
@@ -148,6 +150,10 @@ class MainWindow(QMainWindow):
         self.build_mastering()
         self.build_history()
         self.build_settings()
+        self.build_youtube()
+        from .vocal_page import VocalPage
+        self.vocal_page = VocalPage(self)
+        self.pages[6].addWidget(self.vocal_page)
         body.addWidget(self.stack, 1)
         self.notice = QLabel()
         self.notice.setObjectName('muted')
@@ -381,6 +387,134 @@ class MainWindow(QMainWindow):
         page.addWidget(self.label('privacy', 'muted'))
         page.addStretch()
 
+    def build_youtube(self):
+        page = self.pages[5]
+        page.addWidget(self.label('youtube_intro', 'muted'))
+        form = QFormLayout()
+        self.youtube_link = QLineEdit()
+        self.youtube_link.setPlaceholderText('https://www.youtube.com/watch?v=…')
+        form.addRow(self.label('youtube_link'), self.youtube_link)
+        self.youtube_link.textChanged.connect(self.clear_youtube_preview)
+        preview_row = QHBoxLayout()
+        self.youtube_thumbnail = QLabel()
+        self.youtube_thumbnail.setFixedSize(220,124)
+        self.youtube_thumbnail.setScaledContents(False)
+        preview_row.addWidget(self.youtube_thumbnail)
+        self.youtube_metadata = QLabel('—')
+        self.youtube_metadata.setTextFormat(Qt.PlainText)
+        self.youtube_metadata.setWordWrap(True)
+        preview_row.addWidget(self.youtube_metadata,1)
+        self.youtube_thumbnail.hide()
+        self.youtube_metadata.hide()
+        row = QHBoxLayout()
+        self.youtube_folder = QLineEdit(self.settings.value('youtube_folder', str(Path.home()/'Music'/'KEYWAVE')))
+        row.addWidget(self.youtube_folder)
+        row.addWidget(self.button('youtube_folder_choose', self.choose_youtube_folder))
+        form.addRow(self.label('export_folder'), row)
+        self.youtube_quality = QComboBox()
+        self.youtube_mode = QComboBox()
+        self.youtube_mode.addItems(['MP3','MP4'])
+        self.youtube_mode.currentIndexChanged.connect(self.youtube_format_changed)
+        form.addRow(self.label('format'),self.youtube_mode)
+        self.youtube_format_changed()
+        form.addRow(self.label('youtube_quality'), self.youtube_quality)
+        page.addLayout(form)
+        page.addWidget(self.button('youtube_preview', self.preview_youtube))
+        page.addLayout(preview_row)
+        page.addWidget(self.button('youtube_download', self.start_download, True))
+        self.youtube_result = QLabel()
+        self.youtube_result.setWordWrap(True)
+        self.youtube_result.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        page.addWidget(self.youtube_result)
+        self.youtube_speed = QLabel('—')
+        page.addWidget(self.youtube_speed)
+        self.downloaded_path = None
+        self.youtube_open = self.button('youtube_open', self.open_download)
+        self.youtube_open.setEnabled(False)
+        page.addWidget(self.youtube_open)
+        page.addWidget(self.button('open_folder',self.open_download_folder))
+        page.addWidget(self.label('youtube_quality_note', 'muted'))
+        page.addStretch()
+
+    def choose_youtube_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, self.tr('export_folder'), self.youtube_folder.text())
+        if folder:
+            self.youtube_folder.setText(folder)
+            self.settings.setValue('youtube_folder', folder)
+
+    def start_download(self):
+        from ..downloader import download_media
+        if self.busy:
+            self.notify('busy')
+            return
+        url, folder, quality = self.youtube_link.text(), self.youtube_folder.text().strip(), self.youtube_quality.currentData()
+        mode = self.youtube_mode.currentText().lower()
+        if not folder:
+            self.notify('write_error')
+            return
+        self.settings.setValue('youtube_folder', folder)
+        def done(path):
+            self.downloaded_path = path
+            self.youtube_result.setText(path)
+            self.youtube_open.setEnabled(True)
+            self.notify('youtube_done')
+            self.youtube_speed.setText(self.tr('youtube_done'))
+        self.run_job(lambda progress: download_media(url,folder,mode,quality,progress),done,self.youtube_details)
+
+    def youtube_format_changed(self,*_):
+        self.youtube_quality.clear()
+        if self.youtube_mode.currentText() == 'MP3':
+            for bitrate in (128,192,256,320):
+                self.youtube_quality.addItem(f'{bitrate} kbps',bitrate)
+            self.youtube_quality.setCurrentIndex(1)
+        else:
+            self.youtube_quality.addItem(self.tr('best_available'),0)
+            for height in (720,1080,1440,2160):
+                self.youtube_quality.addItem(f'{height}p'+(' / 4K' if height == 2160 else ''),height)
+
+    def clear_youtube_preview(self,*_):
+        if hasattr(self,'youtube_thumbnail'):
+            self.youtube_thumbnail.clear()
+            self.youtube_metadata.setText('—')
+            self.youtube_thumbnail.hide()
+            self.youtube_metadata.hide()
+
+    def preview_youtube(self):
+        from ..downloader import preview
+        url = self.youtube_link.text()
+        def done(info):
+            if url != self.youtube_link.text():
+                return
+            self.youtube_details(info)
+            pixmap = QPixmap()
+            if info.get('thumbnail') and pixmap.loadFromData(info['thumbnail']):
+                self.youtube_thumbnail.setPixmap(pixmap.scaled(220,124,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+                self.youtube_thumbnail.show()
+        self.run_job(lambda progress:preview(url,progress),done)
+
+    def youtube_details(self,info):
+        if 'title' in info:
+            self.youtube_metadata.show()
+            duration = info.get('duration')
+            time = f'{int(duration)//60}:{int(duration)%60:02}' if duration else '—'
+            heights = ', '.join(f'{h}p' for h in info.get('heights',[]))
+            self.youtube_metadata.setText(f'{info["title"]}\n{time}\n{heights}')
+        if 'speed' in info:
+            speed,eta = info.get('speed'),info.get('eta')
+            self.youtube_speed.setText((f'{speed/1024**2:.2f} MB/s' if speed else '—')+'  ·  '+self.tr('remaining')+': '+(f'{int(eta)//60}:{int(eta)%60:02}' if eta is not None else '—'))
+
+    def open_download_folder(self):
+        folder = Path(self.downloaded_path).parent if self.downloaded_path else Path(self.youtube_folder.text()).expanduser()
+        if folder.is_dir():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder.resolve())))
+        else:
+            self.notify('missing_file')
+
+    def open_download(self):
+        if self.downloaded_path and not self.busy:
+            self.load_file(self.downloaded_path)
+            self.navigate(1)
+
     def build_player(self, body):
         self.player_frame = QFrame()
         self.player_frame.setObjectName('card')
@@ -424,10 +558,15 @@ class MainWindow(QMainWindow):
         self.fade.start()
 
     def navigate(self, index):
+        self.player_frame.setVisible(index != 6)
+        if index == 6:
+            self.player.pause()
+        elif hasattr(self, 'vocal_page'):
+            self.vocal_page.player.pause()
         self.stack.setCurrentIndex(index)
         for i, button in enumerate(self.nav):
             button.setChecked(i == index)
-        self.heading.setText(self.tr(('dashboard', 'analyzer', 'mastering', 'history', 'settings')[index]))
+        self.heading.setText(self.tr(PAGE_KEYS[index]))
         self.animate_page()
 
     def change_language(self, index):
@@ -438,7 +577,7 @@ class MainWindow(QMainWindow):
     def retranslate(self):
         for setter, key in self.bindings:
             setter(self.tr(key))
-        self.heading.setText(self.tr(('dashboard', 'analyzer', 'mastering', 'history', 'settings')[self.stack.currentIndex()]))
+        self.heading.setText(self.tr(PAGE_KEYS[self.stack.currentIndex()]))
         for index in range(self.presets.count()):
             self.presets.setItemText(index, self.tr(self.presets.itemData(index)))
         for key, texts in {'theme':['violet','contrast'], 'animation':['full_motion','minimal_motion'],
@@ -467,6 +606,10 @@ class MainWindow(QMainWindow):
         self.update_comparison()
         self.refresh_history()
 
+        self.vocal_page.translate()
+        if self.youtube_mode.currentText() == 'MP4':
+            self.youtube_quality.setItemText(0,self.tr('best_available'))
+
     def notify(self, key):
         self.current_notice = key
         self.notice.setText(self.tr(key))
@@ -483,7 +626,7 @@ class MainWindow(QMainWindow):
         if path:
             self.load_file(path)
 
-    def run_job(self, function, callback):
+    def run_job(self, function, callback, details=None):
         if self.busy:
             self.notify('busy')
             return
@@ -495,6 +638,8 @@ class MainWindow(QMainWindow):
             self.pulse.start()
         self.worker = Worker(function, self)
         self.worker.progress_changed.connect(self.set_progress)
+        if details:
+            self.worker.details.connect(details)
         self.worker.succeeded.connect(callback)
         self.worker.failed.connect(self.notify)
         self.worker.finished.connect(self.job_finished)
@@ -717,6 +862,7 @@ class MainWindow(QMainWindow):
         self.output.setVolume(gain)
 
     def play(self):
+        self.vocal_page.player.pause()
         if not self.audio:
             self.notify('load_first')
         elif not QMediaDevices.audioOutputs():
@@ -917,6 +1063,7 @@ class MainWindow(QMainWindow):
             return
         self.player.stop()
         self.player.setSource(QUrl())
+        self.vocal_page.stop()
         self.settings.sync()
         try:
             self.temp.cleanup()

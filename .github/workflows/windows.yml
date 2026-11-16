@@ -21,15 +21,21 @@ jobs:
         run: python scripts/make_assets.py
       - name: Test
         run: python -m pytest -q
+      - name: Prepare YouTube runtime
+        run: python scripts/prepare_downloader.py
       - name: Build Windows distribution
         run: python -m PyInstaller --noconfirm KEYWAVE.spec
       - name: Exercise packaged application
         shell: pwsh
         run: |
-          if (!(Test-Path dist/KEYWAVE/KEYWAVE.exe)) { throw 'Missing executable' }
+          if (!(Test-Path dist/KEYWAVE.exe)) { throw 'Missing executable' }
           $env:QT_QPA_PLATFORM = 'offscreen'
-          $p = Start-Process dist/KEYWAVE/KEYWAVE.exe -ArgumentList '--smoke-test' -WindowStyle Hidden -PassThru
-          if (!$p.WaitForExit(300000)) { $p.Kill(); throw 'Packaged smoke test timed out' }
+          $env:KEYWAVE_SMOKE_DIR = Join-Path $pwd 'artifacts'
+          $isolated = Join-Path $env:RUNNER_TEMP 'keywave-standalone'
+          New-Item -ItemType Directory -Force $isolated | Out-Null
+          Copy-Item dist/KEYWAVE.exe $isolated
+          $p = Start-Process (Join-Path $isolated 'KEYWAVE.exe') -WorkingDirectory $isolated -ArgumentList '--smoke-test' -WindowStyle Hidden -PassThru
+          if (!$p.WaitForExit(600000)) { $p.Kill(); throw 'Packaged smoke test timed out' }
           if ($p.ExitCode -ne 0) { throw 'Packaged smoke test failed' }
           $report = Get-Content artifacts/smoke-result.json | ConvertFrom-Json
           if (!$report.ok) { throw 'Packaged report failed' }
@@ -40,6 +46,7 @@ jobs:
         with:
           name: KEYWAVE-Windows-x64
           path: |
+            dist/KEYWAVE.exe
             dist/KEYWAVE-Windows-x64.zip
             dist/KEYWAVE-Windows-x64.zip.sha256
           if-no-files-found: error

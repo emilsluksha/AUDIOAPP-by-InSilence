@@ -10,11 +10,13 @@ class Worker(QThread):
     progress_changed = Signal(int, str)
     succeeded = Signal(object)
     failed = Signal(str)
+    details = Signal(object)
 
     def __init__(self, function, parent=None):
         super().__init__(parent)
         self.function = function
         self.progress = Progress(self.progress_changed.emit)
+        self.progress.details = self.details.emit
 
     def run(self):
         try:

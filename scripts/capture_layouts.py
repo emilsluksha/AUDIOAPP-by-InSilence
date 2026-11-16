@@ -22,7 +22,7 @@ for language in (0,1):
     window.language.setCurrentIndex(language)
     for width, height in ((960,640),(1200,780)):
         window.resize(width,height)
-        for page in (0,1,2,4):
+        for page in (0,1,2,4,5,6):
             window.navigate(page)
             for _ in range(4):
                 app.processEvents()
