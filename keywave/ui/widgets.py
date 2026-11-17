@@ -46,7 +46,7 @@ class Button(QPushButton):
         self.anim.setDuration(160)
         self.anim.setEasingCurve(QEasingCurve.OutCubic)
         self.setCursor(Qt.PointingHandCursor)
-        self.setMinimumHeight(38)
+        self.setMinimumHeight(42)
 
     @Property(float)
     def hover(self):
@@ -75,23 +75,29 @@ class Button(QPushButton):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        rect = self.rect().adjusted(1, 1, -1, -1)
-        if self.primary or self.isChecked():
+        rect = self.rect().adjusted(1, 1, -2, -2)
+        highlighted = self.primary or self.isChecked()
+        hovering = self._hover > 0.01
+        if highlighted:
             gradient = QLinearGradient(0, 0, self.width(), self.height())
-            gradient.setColorAt(0, QColor('#8B5CF6').lighter(100+int(self._hover*12)))
-            gradient.setColorAt(1, QColor('#C74396').lighter(100+int(self._hover*12)))
+            gradient.setColorAt(0, QColor('#8FC8F2' if hovering else '#AEDBFA'))
+            gradient.setColorAt(1, QColor('#5C9ED2' if hovering else '#75B4E5'))
             painter.setBrush(gradient)
-            painter.setPen(Qt.NoPen)
+            painter.setPen(QPen(QColor('#79ADE0'), 1))
         else:
-            painter.setBrush(QColor('#21182E').lighter(100+int(self._hover*24)))
-            painter.setPen(QPen(QColor('#49355E' if self._hover else '#342640'), 1))
+            gradient = QLinearGradient(0, 0, self.width(), self.height())
+            gradient.setColorAt(0, QColor('#FFFFFF'))
+            gradient.setColorAt(1, QColor('#E6F2FC' if hovering else '#F2F8FE'))
+            painter.setBrush(gradient)
+            painter.setPen(QPen(QColor('#B5D4ED' if hovering else '#D5E7F4'), 1))
+        painter.drawRoundedRect(rect, 14, 14)
+        painter.setPen(QColor('#FFFFFF' if highlighted else '#355B7D'))
+        font = painter.font()
+        font.setWeight(600 if highlighted else 500)
+        painter.setFont(font)
         if not self.isEnabled():
-            painter.setOpacity(.35)
-        painter.drawRoundedRect(rect, 10, 10)
-        painter.setPen(QColor('#F8F5FF'))
-        painter.setFont(self.font())
+            painter.setOpacity(.38)
         painter.drawText(rect, Qt.AlignCenter, self.text())
-
 
 class DropZone(QFrame):
     dropped = Signal(str)
@@ -118,7 +124,7 @@ class DropZone(QFrame):
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls() and event.mimeData().urls()[0].isLocalFile():
             event.acceptProposedAction()
-            self.setStyleSheet('QFrame#dropzone {border:2px solid #EC4899;background:#2D1B3C;border-radius:18px;}')
+            self.setStyleSheet('QFrame#dropzone {border:2px solid #77B2E2;background:#DFF1FF;border-radius:22px;}')
             self.button.animate(1.)
 
     def dragLeaveEvent(self, event):

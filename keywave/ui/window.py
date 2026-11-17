@@ -10,10 +10,10 @@ import tempfile
 import numpy as np
 import pyqtgraph as pg
 import soundfile as sf
-from PySide6.QtCore import Qt, QSettings, QUrl, QTimer, QPropertyAnimation, QEasingCurve
+from PySide6.QtCore import Qt, QSettings, QUrl, QTimer, QPropertyAnimation, QEasingCurve, QEvent
 from PySide6.QtGui import QIcon, QPixmap, QDesktopServices
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer, QMediaDevices
-from PySide6.QtWidgets import (QMainWindow, QWidget, QFrame, QLabel, QVBoxLayout, QHBoxLayout,
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabel, QVBoxLayout, QHBoxLayout,
     QGridLayout, QStackedWidget, QScrollArea, QComboBox, QCheckBox, QSlider, QProgressBar,
     QFileDialog, QMessageBox, QListWidget, QDoubleSpinBox, QFormLayout, QDialog,
     QDialogButtonBox, QGraphicsOpacityEffect, QLineEdit)
@@ -26,7 +26,7 @@ from ..storage import History, Translator
 from .widgets import Button, DropZone, Card, Worker
 from .style import STYLE
 
-pg.setConfigOptions(antialias=True, background='#171120', foreground='#A9A0BB')
+pg.setConfigOptions(antialias=True, background='#F7FBFF', foreground='#62809C')
 PAGE_KEYS = ('dashboard', 'analyzer', 'mastering', 'history', 'settings', 'youtube', 'vocal_studio')
 
 
@@ -67,6 +67,92 @@ class MainWindow(QMainWindow):
         self.retranslate()
         self.apply_preferences()
         self.refresh_history()
+        self.install_audio_drop()
+
+    AUDIO_SUFFIXES = frozenset({
+        '.wav', '.mp3', '.flac', '.ogg', '.m4a', '.aac', '.aiff',
+        '.aif', '.opus', '.wma'
+    })
+
+    @classmethod
+    def audio_drop_path(cls, mime):
+        """Accept only a single local audio file; never arbitrary URLs or folders."""
+        if not mime.hasUrls() or len(mime.urls()) != 1:
+            return None
+        url = mime.urls()[0]
+        if not url.isLocalFile():
+            return None
+        path = Path(url.toLocalFile())
+        return str(path) if path.suffix.lower() in cls.AUDIO_SUFFIXES and path.is_file() else None
+
+    def install_audio_drop(self):
+        """One unobtrusive drop target follows the pointer across every page."""
+        self.drop_overlay = QFrame(self.centralWidget())
+        self.drop_overlay.setObjectName('glassOverlay')
+        self.drop_overlay.setAttribute(Qt.WA_TransparentForMouseEvents)
+        layout = QVBoxLayout(self.drop_overlay)
+        layout.setAlignment(Qt.AlignCenter)
+        layout.setSpacing(12)
+        glyph = QLabel('♫')
+        glyph.setObjectName('overlaySymbol')
+        glyph.setAlignment(Qt.AlignCenter)
+        self.drop_title = QLabel()
+        self.drop_title.setObjectName('overlayTitle')
+        self.drop_title.setAlignment(Qt.AlignCenter)
+        self.drop_hint = QLabel()
+        self.drop_hint.setObjectName('overlaySubtitle')
+        self.drop_hint.setAlignment(Qt.AlignCenter)
+        for item in (glyph, self.drop_title, self.drop_hint):
+            layout.addWidget(item)
+        self.translate_drop_overlay()
+        self.drop_overlay.hide()
+        QApplication.instance().installEventFilter(self)
+
+    def translate_drop_overlay(self):
+        russian = self.tr.language == 'ru'
+        self.drop_title.setText('Добавьте свой трек' if russian else 'Drop your music here')
+        self.drop_hint.setText(
+            'Перетащите аудиофайл в KEYWAVE · MP3, WAV, FLAC и другие'
+            if russian else 'Drop an audio file into KEYWAVE · MP3, WAV, FLAC and more'
+        )
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, 'drop_overlay'):
+            self.drop_overlay.setGeometry(self.centralWidget().rect().adjusted(14, 14, -14, -14))
+
+    def eventFilter(self, target, event):
+        kind = event.type()
+        if kind not in (QEvent.DragEnter, QEvent.DragMove, QEvent.DragLeave, QEvent.Drop):
+            return super().eventFilter(target, event)
+        if not isinstance(target, QWidget) or target.window() is not self:
+            return super().eventFilter(target, event)
+        if kind == QEvent.DragLeave:
+            # Moving between child widgets must not remove the app-wide overlay.
+            if target is self or target is self.centralWidget():
+                self.drop_overlay.hide()
+            return super().eventFilter(target, event)
+        path = self.audio_drop_path(event.mimeData())
+        if not path:
+            return super().eventFilter(target, event)
+        event.acceptProposedAction()
+        if kind == QEvent.Drop:
+            self.drop_overlay.hide()
+            if self.busy:
+                self.notify('busy')
+            elif self.stack.currentIndex() == 6:
+                self.vocal_page.load(path)
+            else:
+                self.load_file(path)
+            return True
+        self.drop_overlay.setGeometry(self.centralWidget().rect().adjusted(14, 14, -14, -14))
+        self.drop_overlay.show()
+        self.drop_overlay.raise_()
+        return True
+
+    def closeEvent(self, event):
+        QApplication.instance().removeEventFilter(self)
+        super().closeEvent(event)
 
     def label(self, key, style=None):
         label = QLabel()
@@ -92,7 +178,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(root)
         sidebar = QFrame()
         sidebar.setObjectName('sidebar')
-        sidebar.setFixedWidth(202)
+        sidebar.setFixedWidth(214)
         nav = QVBoxLayout(sidebar)
         nav.setContentsMargins(16, 20, 16, 16)
         nav.setSpacing(6)
@@ -117,7 +203,7 @@ class MainWindow(QMainWindow):
         outer.addWidget(sidebar)
         content = QWidget()
         body = QVBoxLayout(content)
-        body.setContentsMargins(26, 20, 26, 16)
+        body.setContentsMargins(30, 24, 30, 19)
         body.setSpacing(14)
         header = QHBoxLayout()
         self.heading = QLabel()
@@ -176,6 +262,8 @@ class MainWindow(QMainWindow):
         self.build_player(body)
         outer.addWidget(content, 1)
         self.nav[0].setChecked(True)
+        root.setAcceptDrops(True)
+        self.setAcceptDrops(True)
         self.fade_effect = QGraphicsOpacityEffect(self.stack)
         self.stack.setGraphicsEffect(self.fade_effect)
         self.fade = QPropertyAnimation(self.fade_effect, b'opacity', self)
@@ -242,28 +330,28 @@ class MainWindow(QMainWindow):
         page.addWidget(self.label('wave_help', 'muted'))
         self.wave = self.plot(170)
         self.wave.setMaximumHeight(230)
-        self.wave_low = self.wave.plot(pen=pg.mkPen('#8B5CF6', width=1))
-        self.wave_high = self.wave.plot(pen=pg.mkPen('#EC4899', width=1))
+        self.wave_low = self.wave.plot(pen=pg.mkPen('#4C9BD8', width=1))
+        self.wave_high = self.wave.plot(pen=pg.mkPen('#79BDEB', width=1))
         self.wave.addItem(pg.FillBetweenItem(self.wave_low, self.wave_high, brush=pg.mkBrush(139, 92, 246, 90)))
         self.region = pg.LinearRegionItem([0, 1], brush=pg.mkBrush(236, 72, 153, 25))
         self.wave.addItem(self.region)
-        self.playhead = pg.InfiniteLine(0, pen=pg.mkPen('#F8F5FF', width=2))
+        self.playhead = pg.InfiniteLine(0, pen=pg.mkPen('#4C7699', width=2))
         self.wave.addItem(self.playhead)
         self.wave.scene().sigMouseClicked.connect(self.wave_click)
         page.addWidget(self.wave)
         self.spectrum = self.plot()
         self.spectrum.setLogMode(x=True)
-        self.spectrum_curve = self.spectrum.plot(pen=pg.mkPen('#F472B6', width=1.5), fillLevel=-160, brush=pg.mkBrush(139, 92, 246, 35))
+        self.spectrum_curve = self.spectrum.plot(pen=pg.mkPen('#78B8E6', width=1.5), fillLevel=-160, brush=pg.mkBrush(93, 167, 222, 45))
         page.addWidget(self.spectrum)
         self.spectrogram = self.plot(230)
         self.spec_image = pg.ImageItem(axisOrder='row-major')
-        cmap = pg.ColorMap([0, .4, .75, 1], ['#0D0A14', '#4C2380', '#A855F7', '#F9A8D4'])
+        cmap = pg.ColorMap([0, .4, .75, 1], ['#EFF8FF', '#B8DDF5', '#61A6DA', '#367CB1'])
         self.spec_image.setLookupTable(cmap.getLookupTable())
         self.spectrogram.addItem(self.spec_image)
         page.addWidget(self.spectrogram)
         self.chroma_plot = self.plot(160)
         self.chroma_plot.getAxis('bottom').setTicks([list(enumerate(NOTES))])
-        self.chroma_bars = pg.BarGraphItem(x=np.arange(12), height=np.zeros(12), width=.65, brush='#A855F7')
+        self.chroma_bars = pg.BarGraphItem(x=np.arange(12), height=np.zeros(12), width=.65, brush='#61A6DA')
         self.chroma_plot.addItem(self.chroma_bars)
         page.addWidget(self.chroma_plot)
         self.candidate_label = QLabel()
@@ -326,8 +414,8 @@ class MainWindow(QMainWindow):
         self.compare_label.setWordWrap(True)
         page.addWidget(self.compare_label)
         self.compare_plot = self.plot(220)
-        self.before_curve = self.compare_plot.plot(pen=pg.mkPen('#8B5CF6', width=1))
-        self.after_curve = self.compare_plot.plot(pen=pg.mkPen('#F472B6', width=1))
+        self.before_curve = self.compare_plot.plot(pen=pg.mkPen('#4C9BD8', width=1))
+        self.after_curve = self.compare_plot.plot(pen=pg.mkPen('#78B8E6', width=1))
         page.addWidget(self.compare_plot)
         page.addWidget(self.label('master_note', 'muted'))
         page.addStretch()
@@ -587,6 +675,8 @@ class MainWindow(QMainWindow):
         for setter, key in self.bindings:
             setter(self.tr(key))
         self.heading.setText(self.tr(PAGE_KEYS[self.stack.currentIndex()]))
+        if hasattr(self, 'drop_overlay'):
+            self.translate_drop_overlay()
         for index in range(self.presets.count()):
             self.presets.setItemText(index, self.tr(self.presets.itemData(index)))
         for key, texts in {'theme':['violet','contrast'], 'animation':['full_motion','minimal_motion'],
@@ -1039,7 +1129,7 @@ class MainWindow(QMainWindow):
     def apply_preferences(self):
         for button in self.buttons + [self.dropzone.button]:
             button.motion = not self.reduced_motion()
-        self.setStyleSheet(STYLE + ('QLabel#muted {color:#E2D9EF;} QFrame#card {border:1px solid #8B5CF6;}' if self.settings.value('theme') == 'contrast' else ''))
+        self.setStyleSheet(STYLE + ('QLabel#muted {color:#466782;} QFrame#card {border:1px solid #4C9BD8;}' if self.settings.value('theme') == 'contrast' else ''))
         self.device_changed()
 
     def device_changed(self, *_):
