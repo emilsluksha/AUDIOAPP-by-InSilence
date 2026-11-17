@@ -22,6 +22,12 @@ def run_smoke(app, window):
     source = directory/'smoke-source.wav'
     sf.write(source, signal, rate)
     state = {'stage':0, 'ticks':0, 'playback_position':0}
+    capture_screenshots = os.environ.get('KEYWAVE_CAPTURE_SCREENSHOTS') == '1'
+    def capture(filename):
+        # Qt's offscreen renderer can crash the native process on Windows CI.
+        # Desktop screenshots are optional; smoke verification tests functionality.
+        if capture_screenshots:
+            window.grab().save(str(directory/filename))
     window.reduced.setChecked(True)
     timer = QTimer(window)
     timer.setInterval(150)
@@ -35,13 +41,14 @@ def run_smoke(app, window):
     def tick():
         try:
             state['ticks'] += 1
+            (directory/'smoke-stage.txt').write_text(str(state['stage']), encoding='utf-8')
             if state['ticks'] > 1800:
                 raise RuntimeError('Smoke test timeout')
             if window.busy:
                 return
             stage = state['stage']
             if stage == 0:
-                window.grab().save(str(directory/'dashboard.png'))
+                capture('dashboard.png')
                 window.load_file(str(source))
             elif stage == 1:
                 assert window.audio is not None, window.notice.text()
@@ -49,12 +56,12 @@ def run_smoke(app, window):
             elif stage == 2:
                 assert window.result is not None, window.notice.text()
                 assert window.result['bpm'] and window.result['key']
-                window.grab().save(str(directory/'analyzer.png'))
+                capture('analyzer.png')
                 window.navigate(2)
                 window.start_mastering()
             elif stage == 3:
                 assert window.mastered is not None, window.notice.text()
-                window.grab().save(str(directory/'mastering.png'))
+                capture('mastering.png')
                 export_audio(window.mastered, str(directory/'smoke-master.wav'), 44100, ceiling=-1)
                 export_audio(window.mastered, str(directory/'smoke-master.mp3'), 44100)
                 assert decode(str(directory/'smoke-master.mp3')).duration > 9
@@ -69,7 +76,7 @@ def run_smoke(app, window):
                 window.language.setCurrentIndex(1)
                 window.navigate(0)
             elif stage == 5:
-                window.grab().save(str(directory/'dashboard-ru.png'))
+                capture('dashboard-ru.png')
                 t = np.arange(rate*2)/rate
                 vocal = directory/'smoke-vocal.wav'
                 sf.write(vocal,.2*np.sin(2*np.pi*280*t),rate)
@@ -101,10 +108,10 @@ def run_smoke(app, window):
                 node = subprocess.run([str(resource('runtime/node.exe')),'--version'],capture_output=True,check=True,
                     creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
                 state['node_version'] = node.stdout.decode().strip()
-                window.grab().save(str(directory/'vocal-studio.png'))
+                capture('vocal-studio.png')
                 window.navigate(5)
             elif stage == 8:
-                window.grab().save(str(directory/'youtube-downloader.png'))
+                capture('youtube-downloader.png')
                 (directory/'smoke-result.json').write_text(json.dumps({'ok':True,
                     'key':window.result['key'], 'bpm':window.result['bpm'],
                     'master':window.master_metrics, 'playback_position_ms':state['playback_position'],
