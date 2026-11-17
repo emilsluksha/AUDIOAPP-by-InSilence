@@ -3,6 +3,7 @@ from pathlib import Path
 import logging
 import os
 import re
+import shutil
 import tempfile
 import urllib.request
 from urllib.parse import urlparse, parse_qs
@@ -36,12 +37,24 @@ def reject_live(info, *, incomplete=False):
 
 def options(progress: Progress):
     node = resource('runtime/node.exe')
-    if not node.is_file():
+    node_path = str(node) if node.is_file() else shutil.which('node')
+    if not node_path:
         raise AudioError('youtube_runtime')
-    return {'noplaylist':True,'quiet':True,'no_warnings':True,'socket_timeout':15,
-        'retries':2,'fragment_retries':2,'cachedir':False,'restrictfilenames':True,
-        'match_filter':reject_live,'js_runtimes':{'node':{'path':str(node)}},
+    return {'noplaylist':True,'quiet':True,'no_warnings':False,'socket_timeout':25,
+        'retries':4,'fragment_retries':4,'extractor_retries':3,
+        'file_access_retries':3,'cachedir':False,'restrictfilenames':True,
+        'match_filter':reject_live,'js_runtimes':{'node':{'path':node_path}},
         'remote_components':[], 'skip_unavailable_fragments':False}
+
+
+def explain_download_error(error: Exception) -> AudioError:
+    """Preserve the real downloader failure instead of the unhelpful 'Failed'."""
+    reason = re.sub(r'\x1b\[[0-9;]*m', '', str(error)).strip()
+    if reason.startswith('ERROR: '):
+        reason = reason[7:]
+    # yt-dlp can include large extractor traces; keep the visible notification brief.
+    reason = ' '.join(reason.split())[:450]
+    return AudioError('youtube_unavailable' + (': ' + reason if reason else ''))
 
 
 def thumbnail_bytes(info, progress):
@@ -77,7 +90,7 @@ def preview(url: str, progress: Progress | None = None) -> dict:
     except yt_dlp.utils.DownloadError as error:
         progress.check()
         logging.warning('YouTube preview failed: %s',error)
-        raise AudioError('youtube_unavailable') from error
+        raise explain_download_error(error) from error
 
 
 def choose_video(formats: list[dict], height: int | None):
@@ -144,7 +157,7 @@ def download_media(url: str, folder: str, mode: str = 'mp3', quality: int = 192,
         except yt_dlp.utils.DownloadError as error:
             progress.check()
             logging.warning('YouTube download failed: %s',error)
-            raise AudioError('youtube_unavailable') from error
+            raise explain_download_error(error) from error
         progress.update(82,'youtube_converting' if mode == 'mp3' else 'youtube_merging')
         encoded = Path(temp)/('converted.'+mode)
         run_codec(['-y',*inputs,'-metadata','title='+str(info.get('title','YouTube')),str(encoded)],progress)
