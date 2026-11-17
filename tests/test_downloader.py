@@ -100,3 +100,18 @@ def test_mp4_merge_real_ffmpeg(tmp_path,monkeypatch):
     output = module.download_media('https://youtu.be/BaW_jenozKc',str(tmp_path),'mp4',1080)
     assert Path(output).stat().st_size > 1000
     run_codec(['-i',output,'-map','0:v:0','-map','0:a:0','-f','null','-'],Progress())
+
+
+def test_explain_download_error_preserves_useful_reason():
+    from keywave.downloader import explain_download_error
+    error = explain_download_error(Exception('ERROR: HTTP Error 403: Forbidden'))
+    assert 'youtube_unavailable' in str(error)
+    assert '403: Forbidden' in str(error)
+
+
+def test_options_fallback_to_system_node(tmp_path, monkeypatch):
+    from keywave.downloader import options
+    import keywave.downloader as module
+    monkeypatch.setattr(module, 'resource', lambda _: tmp_path/'missing-node.exe')
+    monkeypatch.setattr(module.shutil, 'which', lambda _: 'C:/nodejs/node.exe')
+    assert options(Progress())['js_runtimes']['node']['path'] == 'C:/nodejs/node.exe'
