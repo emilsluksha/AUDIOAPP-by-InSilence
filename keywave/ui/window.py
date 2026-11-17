@@ -459,7 +459,16 @@ class MainWindow(QMainWindow):
             self.youtube_open.setEnabled(True)
             self.notify('youtube_done')
             self.youtube_speed.setText(self.tr('youtube_done'))
-        self.run_job(lambda progress: download_media(url,folder,mode,quality,progress),done,self.youtube_details)
+        self.run_job(lambda progress: download_media(url,folder,mode,quality,progress),done,self.youtube_details,self.youtube_failed)
+
+    def youtube_failed(self, reason):
+        # Show the localized summary and the underlying yt-dlp error in the downloader.
+        summary, separator, details = reason.partition(': ')
+        self.youtube_result.setText(
+            self.tr(summary) + ('\n\n' + details if separator else '')
+        )
+        self.youtube_speed.setText('—')
+        self.youtube_open.setEnabled(False)
 
     def youtube_format_changed(self,*_):
         self.youtube_quality.clear()
@@ -490,7 +499,7 @@ class MainWindow(QMainWindow):
             if info.get('thumbnail') and pixmap.loadFromData(info['thumbnail']):
                 self.youtube_thumbnail.setPixmap(pixmap.scaled(220,124,Qt.KeepAspectRatio,Qt.SmoothTransformation))
                 self.youtube_thumbnail.show()
-        self.run_job(lambda progress:preview(url,progress),done)
+        self.run_job(lambda progress:preview(url,progress),done,on_error=self.youtube_failed)
 
     def youtube_details(self,info):
         if 'title' in info:
@@ -626,7 +635,7 @@ class MainWindow(QMainWindow):
         if path:
             self.load_file(path)
 
-    def run_job(self, function, callback, details=None):
+    def run_job(self, function, callback, details=None, on_error=None):
         if self.busy:
             self.notify('busy')
             return
@@ -642,6 +651,8 @@ class MainWindow(QMainWindow):
             self.worker.details.connect(details)
         self.worker.succeeded.connect(callback)
         self.worker.failed.connect(self.notify)
+        if on_error:
+            self.worker.failed.connect(on_error)
         self.worker.finished.connect(self.job_finished)
         self.worker.start()
 
