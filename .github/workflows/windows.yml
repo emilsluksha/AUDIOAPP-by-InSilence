@@ -36,7 +36,11 @@ jobs:
           Copy-Item dist/KEYWAVE.exe $isolated
           $p = Start-Process (Join-Path $isolated 'KEYWAVE.exe') -WorkingDirectory $isolated -ArgumentList '--smoke-test' -WindowStyle Hidden -PassThru
           if (!$p.WaitForExit(600000)) { $p.Kill(); throw 'Packaged smoke test timed out' }
-          if ($p.ExitCode -ne 0) { throw 'Packaged smoke test failed' }
+          if ($p.ExitCode -ne 0) {
+            if (Test-Path artifacts/smoke-stage.txt) { Write-Host "Failed at smoke stage: $(Get-Content artifacts/smoke-stage.txt)" }
+            if (Test-Path artifacts/smoke-result.json) { Get-Content artifacts/smoke-result.json }
+            throw "Packaged smoke test failed (exit $($p.ExitCode))"
+          }
           $report = Get-Content artifacts/smoke-result.json | ConvertFrom-Json
           if (!$report.ok) { throw 'Packaged report failed' }
       - name: Package portable application
