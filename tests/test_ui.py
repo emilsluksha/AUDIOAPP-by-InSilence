@@ -52,3 +52,30 @@ def test_drop_accepts_local_audio(tmp_path):
     event = QDropEvent(QPointF(10,10), Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier)
     drop.dropEvent(event)
     assert received == [str(tmp_path/'audio.wav').replace('\\','/')]
+
+
+def test_global_audio_drop_path(tmp_path):
+    from PySide6.QtCore import QMimeData, QUrl
+    audio = tmp_path/'test.MP3'
+    audio.write_bytes(b'fixture')
+    mime = QMimeData()
+    mime.setUrls([QUrl.fromLocalFile(str(audio))])
+    assert MainWindow.audio_drop_path(mime) == str(audio)
+    mime.setUrls([QUrl('https://example.com/test.mp3')])
+    assert MainWindow.audio_drop_path(mime) is None
+    mime.setUrls([QUrl.fromLocalFile(str(tmp_path))])
+    assert MainWindow.audio_drop_path(mime) is None
+
+
+def test_overlay_available_on_every_page(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    settings = QSettings(str(tmp_path/'glass.ini'), QSettings.IniFormat)
+    window = MainWindow(settings, History(tmp_path/'history.json'))
+    for index in range(7):
+        window.navigate(index)
+        assert window.drop_overlay.parent() is window.centralWidget()
+        assert window.drop_title.text()
+    window.change_language(1)
+    assert window.drop_title.text() == 'Добавьте свой трек'
+    window.close()
+    app.processEvents()
