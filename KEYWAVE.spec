@@ -1,4 +1,4 @@
-# Standalone onefile build. Resources resolve through sys._MEIPASS.
+# Portable onedir build; all runtime dependencies live beside KEYWAVE.exe.
 from PyInstaller.utils.hooks import collect_all, collect_data_files, copy_metadata
 
 datas = [('localization', 'localization'), ('assets', 'assets'),
@@ -18,6 +18,7 @@ a = Analysis(['main.py'], pathex=[], binaries=binaries, datas=datas,
              excludes=['tkinter', 'matplotlib', 'PyQt5', 'PyQt6', 'PySide2', 'IPython', 'pytest'],
              noarchive=False)
 pyz = PYZ(a.pure)
-exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name='KEYWAVE', debug=False,
+exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='KEYWAVE', debug=False,
           bootloader_ignore_signals=False, strip=False, upx=False, console=False,
           icon='assets/keywave.ico')
+coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='KEYWAVE')
