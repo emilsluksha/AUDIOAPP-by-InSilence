@@ -8,7 +8,7 @@ import tempfile
 import urllib.request
 from urllib.parse import urlparse, parse_qs
 
-from .audio import run_codec
+from .audio import run_codec, ffmpeg
 from .core import AudioError, Cancelled, Progress, resource
 
 
@@ -40,7 +40,10 @@ def options(progress: Progress):
     node_path = str(node) if node.is_file() else shutil.which('node')
     if not node_path:
         raise AudioError('youtube_runtime')
-    return {'noplaylist':True,'quiet':True,'no_warnings':False,'socket_timeout':25,
+    return {'noplaylist':True,'quiet':True,'noprogress':True,
+        'logger':logging.getLogger('keywave.youtube'),
+        'ffmpeg_location':ffmpeg(),
+        'no_warnings':False,'socket_timeout':25,
         'retries':4,'fragment_retries':4,'extractor_retries':3,
         'file_access_retries':3,'cachedir':False,'restrictfilenames':True,
         'match_filter':reject_live,'js_runtimes':{'node':{'path':node_path}},

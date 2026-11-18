@@ -25,8 +25,9 @@ from ..mastering import master, MasterSettings, PRESETS
 from ..storage import History, Translator
 from .widgets import Button, DropZone, Card, Worker
 from .style import STYLE
+from .. import __version__
 
-pg.setConfigOptions(antialias=True, background='#F7FBFF', foreground='#62809C')
+pg.setConfigOptions(antialias=True, background='#111B29', foreground='#A2B4C9')
 PAGE_KEYS = ('dashboard', 'analyzer', 'mastering', 'history', 'settings', 'youtube', 'vocal_studio')
 
 
@@ -74,6 +75,11 @@ class MainWindow(QMainWindow):
         '.aif', '.opus', '.wma'
     })
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        from .chrome import dark_caption
+        dark_caption(self)
+
     @classmethod
     def audio_drop_path(cls, mime):
         """Accept only a single local audio file; never arbitrary URLs or folders."""
@@ -93,7 +99,8 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(self.drop_overlay)
         layout.setAlignment(Qt.AlignCenter)
         layout.setSpacing(12)
-        glyph = QLabel('♫')
+        glyph = QLabel()
+        glyph.setPixmap(QPixmap(str(resource('assets/keywave.png'))).scaled(56,56,Qt.KeepAspectRatio,Qt.SmoothTransformation))
         glyph.setObjectName('overlaySymbol')
         glyph.setAlignment(Qt.AlignCenter)
         self.drop_title = QLabel()
@@ -150,10 +157,6 @@ class MainWindow(QMainWindow):
         self.drop_overlay.raise_()
         return True
 
-    def closeEvent(self, event):
-        QApplication.instance().removeEventFilter(self)
-        super().closeEvent(event)
-
     def label(self, key, style=None):
         label = QLabel()
         if style:
@@ -172,6 +175,7 @@ class MainWindow(QMainWindow):
 
     def build(self):
         root = QWidget()
+        root.setObjectName('applicationSurface')
         outer = QHBoxLayout(root)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
@@ -199,7 +203,7 @@ class MainWindow(QMainWindow):
             self.nav.append(button)
         nav.addStretch()
         nav.addWidget(self.label('local_processing', 'muted'))
-        nav.addWidget(QLabel('KEYWAVE  1.0.0'))
+        nav.addWidget(QLabel('KEYWAVE  '+__version__))
         outer.addWidget(sidebar)
         content = QWidget()
         body = QVBoxLayout(content)
@@ -265,6 +269,7 @@ class MainWindow(QMainWindow):
         root.setAcceptDrops(True)
         self.setAcceptDrops(True)
         self.fade_effect = QGraphicsOpacityEffect(self.stack)
+        self.fade_effect.setOpacity(1.)
         self.stack.setGraphicsEffect(self.fade_effect)
         self.fade = QPropertyAnimation(self.fade_effect, b'opacity', self)
         self.fade.setEasingCurve(QEasingCurve.OutCubic)
@@ -345,7 +350,7 @@ class MainWindow(QMainWindow):
         page.addWidget(self.spectrum)
         self.spectrogram = self.plot(230)
         self.spec_image = pg.ImageItem(axisOrder='row-major')
-        cmap = pg.ColorMap([0, .4, .75, 1], ['#EFF8FF', '#B8DDF5', '#61A6DA', '#367CB1'])
+        cmap = pg.ColorMap([0, .4, .75, 1], ['#101A28', '#294F70', '#659FC0', '#C0D9DC'])
         self.spec_image.setLookupTable(cmap.getLookupTable())
         self.spectrogram.addItem(self.spec_image)
         page.addWidget(self.spectrogram)
@@ -511,6 +516,7 @@ class MainWindow(QMainWindow):
         page.addLayout(preview_row)
         page.addWidget(self.button('youtube_download', self.start_download, True))
         self.youtube_result = QLabel()
+        self.youtube_result.setTextFormat(Qt.PlainText)
         self.youtube_result.setWordWrap(True)
         self.youtube_result.setTextInteractionFlags(Qt.TextSelectableByMouse)
         page.addWidget(self.youtube_result)
@@ -540,6 +546,10 @@ class MainWindow(QMainWindow):
         if not folder:
             self.notify('write_error')
             return
+        self.youtube_result.clear()
+        self.youtube_speed.setText(self.tr('youtube_connecting'))
+        self.youtube_open.setEnabled(False)
+        self.downloaded_path = None
         self.settings.setValue('youtube_folder', folder)
         def done(path):
             self.downloaded_path = path
@@ -711,7 +721,8 @@ class MainWindow(QMainWindow):
 
     def notify(self, key):
         self.current_notice = key
-        self.notice.setText(self.tr(key))
+        summary, separator, details = key.partition(': ')
+        self.notice.setText(self.tr(summary) + (': ' + details if separator else ''))
         self.notice.show()
         self.notice_animation.stop()
         self.notice_animation.setDuration(0 if self.reduced_motion() else 200)
@@ -1129,7 +1140,7 @@ class MainWindow(QMainWindow):
     def apply_preferences(self):
         for button in self.buttons + [self.dropzone.button]:
             button.motion = not self.reduced_motion()
-        self.setStyleSheet(STYLE + ('QLabel#muted {color:#466782;} QFrame#card {border:1px solid #4C9BD8;}' if self.settings.value('theme') == 'contrast' else ''))
+        self.setStyleSheet(STYLE + ('QLabel#muted {color:#CCD8E6;} QFrame#card {border:1px solid #4C9BD8;}' if self.settings.value('theme') == 'contrast' else ''))
         self.device_changed()
 
     def device_changed(self, *_):
@@ -1162,6 +1173,7 @@ class MainWindow(QMainWindow):
             self.notify('wait_cancel')
             event.ignore()
             return
+        QApplication.instance().removeEventFilter(self)
         self.player.stop()
         self.player.setSource(QUrl())
         self.vocal_page.stop()

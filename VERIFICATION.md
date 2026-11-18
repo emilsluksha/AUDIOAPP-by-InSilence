@@ -2,7 +2,7 @@
 
 Development platform: Windows 11 x64, Python 3.12.14.
 
-- 75 pytest cases pass, including real WAV/MP3 decoding and export, damaged input,
+- 81 pytest cases pass, including real WAV/MP3 decoding and export, damaged input,
   440 Hz pitch, all 24 tonal profiles, synthesized C-major audio, a 120 BPM rhythm,
   silence, white-noise rejection, anti-phase stereo, fragment analysis, all mastering presets, finite
   output, peak ceiling, zero-intensity bypass, cancellation, history persistence,
@@ -44,3 +44,17 @@ Not established: accuracy against a labelled real-world music corpus, equivalenc
 to commercial key detectors, certified ITU true-peak compliance, sample-accurate
 A/B switching, exhaustive codec/device compatibility, Windows 10 physical-device
 testing, or a digitally signed installer. See README for processing and memory limits.
+
+## Regression fixes 1.1.1
+
+- Reproduced blank button labels: Qt rejects integer QFont.setWeight arguments.
+  A rendered-pixel test now checks that labels are drawn and Qt raises no exception.
+- Verified the native dark caption on the development desktop and the RGBA logo.
+- Reproduced frozen HTTPS failure at SSLContext construction: the development
+  Python requires codex-rejected-cas.pem, absent from the previous EXE. Including
+  that resource fixed SSL and HTTPS in an isolated frozen diagnostic. Certificate
+  verification stays enabled. Stock Python builds do not require this extra file.
+- Packaged smoke now creates a verified yt-dlp SSL context, catching the issue
+  without requiring network access in CI.
+- Live user-supplied link -AYA25JpXLs: source MP3/MP4 download and decode succeeded.
+  Packaged download checks write separate evidence under artifacts/.

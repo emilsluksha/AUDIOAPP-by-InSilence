@@ -115,3 +115,22 @@ def test_options_fallback_to_system_node(tmp_path, monkeypatch):
     monkeypatch.setattr(module, 'resource', lambda _: tmp_path/'missing-node.exe')
     monkeypatch.setattr(module.shutil, 'which', lambda _: 'C:/nodejs/node.exe')
     assert options(Progress())['js_runtimes']['node']['path'] == 'C:/nodejs/node.exe'
+
+
+def test_windowed_downloader_logs_without_console(tmp_path, monkeypatch, caplog):
+    import sys
+    import logging
+    import yt_dlp
+    from keywave.downloader import options
+    from keywave.audio import ffmpeg
+    import keywave.downloader as module
+    node = tmp_path/'node.exe'
+    node.touch()
+    monkeypatch.setattr(module, 'resource', lambda _: node)
+    monkeypatch.setattr(sys, 'stdout', None)
+    monkeypatch.setattr(sys, 'stderr', None)
+    opts = options(Progress())
+    assert opts['ffmpeg_location'] == ffmpeg()
+    with caplog.at_level(logging.WARNING), yt_dlp.YoutubeDL(opts) as downloader:
+        downloader.report_warning('windowed diagnostic fixture')
+    assert 'windowed diagnostic fixture' in caplog.text

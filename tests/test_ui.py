@@ -1,4 +1,5 @@
 import os
+import sys
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
@@ -7,10 +8,31 @@ from keywave.ui.window import MainWindow
 from keywave.ui.widgets import DropZone
 
 
+def test_glass_buttons_render_text_without_qt_exception(monkeypatch):
+    from keywave.ui.widgets import Button
+    app = QApplication.instance() or QApplication([])
+    errors = []
+    monkeypatch.setattr(sys, 'excepthook', lambda *args: errors.append(args))
+    for primary in (False, True):
+        button = Button('Скачать MP3', primary=primary)
+        button.resize(240, 44)
+        button.show()
+        app.processEvents()
+        labelled = button.grab().toImage()
+        button.setText('')
+        blank = button.grab().toImage()
+        # A label must contribute pixels; mere successful widget creation missed
+        # the invalid QFont.setWeight(int) that silently left every button blank.
+        assert labelled != blank
+        button.close()
+    assert not errors
+
+
 def test_navigation_translation_preferences(tmp_path):
     app = QApplication.instance() or QApplication([])
     settings = QSettings(str(tmp_path/'settings.ini'), QSettings.IniFormat)
     window = MainWindow(settings, History(tmp_path/'history.json'))
+    assert window.fade_effect.opacity() == 1.
     window.show()
     for i in range(7):
         window.nav[i].click()

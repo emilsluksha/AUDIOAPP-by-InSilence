@@ -48,6 +48,11 @@ def run_smoke(app, window):
                 return
             stage = state['stage']
             if stage == 0:
+                import ssl
+                from yt_dlp.networking._helper import make_ssl_context
+                # No network needed: catches absent SSL and CA-bundle resources.
+                context = make_ssl_context()
+                assert context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname
                 capture('dashboard.png')
                 window.load_file(str(source))
             elif stage == 1:
@@ -111,11 +116,22 @@ def run_smoke(app, window):
                 capture('vocal-studio.png')
                 window.navigate(5)
             elif stage == 8:
+                live_url = os.environ.get('KEYWAVE_YOUTUBE_URL')
+                if live_url:
+                    if not state.get('download_started'):
+                        state['download_started'] = True
+                        window.youtube_link.setText(live_url)
+                        window.youtube_folder.setText(str(directory/'youtube'))
+                        window.start_download()
+                        return
+                    assert window.downloaded_path, window.youtube_result.text()
+                    assert decode(window.downloaded_path).duration > 1
                 capture('youtube-downloader.png')
                 (directory/'smoke-result.json').write_text(json.dumps({'ok':True,
                     'key':window.result['key'], 'bpm':window.result['bpm'],
                     'master':window.master_metrics, 'playback_position_ms':state['playback_position'],
-                    'vocal_hz':state['vocal_hz'],'node_version':state['node_version']},indent=2), encoding='utf-8')
+                    'vocal_hz':state['vocal_hz'],'node_version':state['node_version'],
+                    'youtube_file':window.downloaded_path},indent=2), encoding='utf-8')
                 timer.stop()
                 window.close()
                 app.quit()

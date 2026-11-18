@@ -1,6 +1,8 @@
 # Third-party software
 
-KEYWAVE's original source and generated geometric icon are provided under MIT.
+KEYWAVE's original source is provided under MIT. The application logo was supplied
+by the project owner and prepared with transparent outer background using the
+built-in image tool; it is not part of any third-party dependency.
 Dependencies retain their own licenses. License texts collected from the exact
 installed wheels are in `licenses/` and are included in the portable build.
 

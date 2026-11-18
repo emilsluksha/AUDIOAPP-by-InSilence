@@ -18,6 +18,12 @@ def main():
     from keywave.core import data_dir
     handler = RotatingFileHandler(data_dir()/'keywave.log', maxBytes=2_000_000, backupCount=2, encoding='utf-8')
     logging.basicConfig(level=logging.INFO, handlers=[handler], format='%(asctime)s %(levelname)s %(message)s')
+    # Windowed EXEs have no stderr; retain exceptions raised by Qt callbacks.
+    sys.excepthook = lambda kind, value, tb: logging.error('Unhandled UI exception', exc_info=(kind, value, tb))
+    if '--youtube-check' in sys.argv:
+        from keywave.download_check import run
+        index = sys.argv.index('--youtube-check')
+        return run(sys.argv[index+1], sys.argv[index+2])
     app = QApplication(sys.argv)
     app.setApplicationName('KEYWAVE')
     app.setOrganizationName('KEYWAVE')

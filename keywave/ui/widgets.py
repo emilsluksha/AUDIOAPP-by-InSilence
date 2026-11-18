@@ -1,6 +1,6 @@
 from __future__ import annotations
 from PySide6.QtCore import Property, QPropertyAnimation, QEasingCurve, Signal, Qt, QThread
-from PySide6.QtGui import QColor, QPainter, QPen, QLinearGradient
+from PySide6.QtGui import QColor, QPainter, QPen, QLinearGradient, QFont
 from PySide6.QtWidgets import QPushButton, QFrame, QVBoxLayout, QLabel
 import logging
 from ..core import Progress, AudioError, Cancelled
@@ -77,26 +77,36 @@ class Button(QPushButton):
         painter.setRenderHint(QPainter.Antialiasing)
         rect = self.rect().adjusted(1, 1, -2, -2)
         highlighted = self.primary or self.isChecked()
-        hovering = self._hover > 0.01
+        def tint(start, end):
+            a, b = QColor(start), QColor(end)
+            return QColor.fromRgbF(*[a.getRgbF()[i] + (b.getRgbF()[i]-a.getRgbF()[i])*self._hover for i in range(4)])
+        if not self.isEnabled():
+            painter.setOpacity(.55)
         if highlighted:
             gradient = QLinearGradient(0, 0, self.width(), self.height())
-            gradient.setColorAt(0, QColor('#8FC8F2' if hovering else '#AEDBFA'))
-            gradient.setColorAt(1, QColor('#5C9ED2' if hovering else '#75B4E5'))
+            gradient.setColorAt(0, tint('#385D7E', '#456F92'))
+            gradient.setColorAt(1, tint('#243F5C', '#2D4D6B'))
             painter.setBrush(gradient)
-            painter.setPen(QPen(QColor('#79ADE0'), 1))
+            painter.setPen(QPen(tint('#577B9D', '#87ACCA'), 1))
         else:
             gradient = QLinearGradient(0, 0, self.width(), self.height())
-            gradient.setColorAt(0, QColor('#FFFFFF'))
-            gradient.setColorAt(1, QColor('#E6F2FC' if hovering else '#F2F8FE'))
+            gradient.setColorAt(0, tint('#223244', '#30465D'))
+            gradient.setColorAt(1, tint('#152232', '#203247'))
             painter.setBrush(gradient)
-            painter.setPen(QPen(QColor('#B5D4ED' if hovering else '#D5E7F4'), 1))
+            painter.setPen(QPen(tint('#384B61', '#6C89A6'), 1))
         painter.drawRoundedRect(rect, 14, 14)
-        painter.setPen(QColor('#FFFFFF' if highlighted else '#355B7D'))
+        # A faint inner reflection defines the glass edge without brightening the text.
+        painter.setBrush(Qt.NoBrush)
+        painter.setPen(QPen(QColor(187, 211, 231, 30), 1))
+        painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 13, 13)
+        painter.setPen(QColor('#DCE7F1' if highlighted else '#C6D5E5'))
         font = painter.font()
-        font.setWeight(600 if highlighted else 500)
+        font.setWeight(QFont.Weight.DemiBold if highlighted else QFont.Weight.Medium)
         painter.setFont(font)
-        if not self.isEnabled():
-            painter.setOpacity(.38)
+        if self.hasFocus():
+            painter.setPen(QPen(QColor('#97B9D5'), 1, Qt.DotLine))
+            painter.drawRoundedRect(rect.adjusted(3,3,-3,-3), 11, 11)
+            painter.setPen(QColor('#DCE7F1'))
         painter.drawText(rect, Qt.AlignCenter, self.text())
 
 class DropZone(QFrame):
@@ -124,7 +134,7 @@ class DropZone(QFrame):
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls() and event.mimeData().urls()[0].isLocalFile():
             event.acceptProposedAction()
-            self.setStyleSheet('QFrame#dropzone {border:2px solid #77B2E2;background:#DFF1FF;border-radius:22px;}')
+            self.setStyleSheet('QFrame#dropzone {border:2px solid #789DBC;background:#203247;border-radius:22px;}')
             self.button.animate(1.)
 
     def dragLeaveEvent(self, event):
